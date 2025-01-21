@@ -1,48 +1,74 @@
 use clap::Parser;
 use csv::ReaderBuilder;
+use std::collections::HashMap;
 use std::error::Error;
 use std::fs::File;
 
-/// Command-line arguments for the CSV parser
+use rayon::prelude::*;
+
+/// program to read and calculate the grezzi dimensions
 #[derive(Parser, Debug)]
-#[command(author = "Leonardo Corti <leonardo.filippo@ymail.com>", version = "0.1", about = "tmp")]
+#[command(styles=get_styles())]
 struct Cli {
     /// The input CSV file
-    #[arg(short, long)]
     input: String,
 
     /// The output CSV file
     #[arg(short, long)]
-    output: String,
+    output: Option<String>,
 
-    /// Comma-separated list of columns to save (1-based index)
-    #[arg(short, long, default_value = "1,3")]
-    columns: String,
+    /// Comma-separated list of columns with important identifiers (1-based index)
+    #[arg(short, long, default_value = "1,5")]
+    identifiers_columns: String,
+    
+    /// Column containing the width
+    #[arg(short, long, default_value = "3")]
+    width_column: usize,
+
+    /// Column containing the length
+    #[arg(short, long, default_value = "2")]
+    length_column: usize,
+
+    /// Offset
+    #[arg(long, default_value = "10")]
+    offset: usize,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
     let cli = Cli::parse();
 
     // Parse column indices
-    let columns: Vec<usize> = cli
-        .columns
+    let identifiers_columns: Vec<usize> = cli
+        .identifiers_columns
         .split(',')
         .map(|s| s.trim().parse::<usize>().expect("Invalid column index"))
         .collect();
 
-    // Process CSV file
-    process_csv(&cli.input, &cli.output, &columns)?;
+    let identifiers: HashMap<String,Vec<Unit>> = get_data(&cli.input, &identifiers_columns, cli.width_column, cli.length_column)?;
 
+    identifiers.par_iter().map(|(k,v)|do_stuff(k,v))
+        .for_each(|(k,v)| println!("{:?}{:?}",k,v));
+    
     Ok(())
 }
 
-fn process_csv(input_path: &str, output_path: &str, columns: &[usize]) -> Result<(), Box<dyn Error>> {
-    // Open input and output files
+fn do_stuff<'a>(k: &'a str, v: &'a[Unit]) -> (&'a str,Vec<Unit>) {
+    let new_unit = Unit { height: v[0].width, width: v[0].height };
+    return (k,vec![new_unit]);
+}
+
+
+fn get_data(
+    input_path: &str,
+    columns: &[usize],
+    width_column: usize,
+    height_column: usize
+) -> Result<HashMap<String,Vec<Unit>>, Box<dyn Error>> {
+    // Open input file
     let input_file = File::open(input_path)?;
     let mut rdr = ReaderBuilder::new().delimiter(b';').from_reader(input_file);
-    let output_file = File::create(output_path)?;
-    let mut wtr = csv::Writer::from_writer(output_file);
-
+    let mut results: HashMap<String,Vec<Unit>> = HashMap::new();
+    
     // Process records
     for result in rdr.records() {
         let record = result?;
@@ -50,9 +76,65 @@ fn process_csv(input_path: &str, output_path: &str, columns: &[usize]) -> Result
             .iter()
             .filter_map(|&col| record.get(col - 1)) // Convert 1-based to 0-based index
             .collect();
-        wtr.write_record(&selected_fields)?;
+        let width: f32 = record.get(width_column -1).expect("cannot access width").replace(",", ".").parse()?;
+        let height: f32 = record.get(height_column -1).expect("cannot access height").replace(",", ".").parse()?;
+        let current_unit: Unit = Unit { height, width };
+        let identifier = selected_fields.join(",");
+        match results.get_mut(&identifier) {
+            Some(id_list) => {
+                id_list.push(current_unit);
+            }
+            None => {
+                    let mut id_list: Vec<Unit> = Vec::new();
+                    id_list.push(current_unit);
+                    results.insert(identifier, id_list);
+                }
+        }
     }
+    return Ok(results);
+}
 
-    wtr.flush()?;
-    Ok(())
+#[derive(Debug)]
+struct Unit{
+    height: f32,
+    width: f32,
+}
+
+//styling for help flag
+pub fn get_styles() -> clap::builder::Styles {
+    clap::builder::Styles::styled()
+        .usage(
+            anstyle::Style::new()
+                .bold()
+                .underline()
+                .fg_color(Some(anstyle::Color::Ansi(anstyle::AnsiColor::Yellow))),
+        )
+        .header(
+            anstyle::Style::new()
+                .bold()
+                .underline()
+                .fg_color(Some(anstyle::Color::Ansi(anstyle::AnsiColor::Yellow))),
+        )
+        .literal(
+            anstyle::Style::new().fg_color(Some(anstyle::Color::Ansi(anstyle::AnsiColor::Green))),
+        )
+        .invalid(
+            anstyle::Style::new()
+                .bold()
+                .fg_color(Some(anstyle::Color::Ansi(anstyle::AnsiColor::Red))),
+        )
+        .error(
+            anstyle::Style::new()
+                .bold()
+                .fg_color(Some(anstyle::Color::Ansi(anstyle::AnsiColor::Red))),
+        )
+        .valid(
+            anstyle::Style::new()
+                .bold()
+                .underline()
+                .fg_color(Some(anstyle::Color::Ansi(anstyle::AnsiColor::Green))),
+        )
+        .placeholder(
+            anstyle::Style::new().fg_color(Some(anstyle::Color::Ansi(anstyle::AnsiColor::White))),
+        )
 }

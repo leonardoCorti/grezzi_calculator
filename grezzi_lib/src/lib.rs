@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use std::{collections::HashMap, error::Error, fs::File, ops::Range};
 
 use csv::ReaderBuilder;
@@ -10,26 +9,77 @@ pub struct Unit{
 }
 
 impl Unit {
-    fn get_area(&self, _offset: &Range<usize>) -> Area {
-    todo!()
+    fn get_area(&self, offset: &Range<f32>) -> Area {
+        let o_min: f32 = offset.start;
+        let o_max: f32 = offset.end;
+        let x: f32 = self.width;
+        let y: f32 = self.height;
+        //top rectangle
+        let top = Rectangle{ 
+            top_left: (x,y+o_max),
+            down_right: (x+o_max,y+o_min),
+        };
+        //bottom rectagngle
+        let down = Rectangle{
+            top_left: (x+o_min,y+o_max),
+            down_right: (x+o_max,y), 
+        };
+        return Area { top , down };
     }
 }
 
 #[derive(Debug,Clone)]
-struct Point{
+struct Rectangle{
     top_left: (f32,f32),
     down_right: (f32,f32),
 }
 
+impl Rectangle {
+    fn intersection(&self, other: &Rectangle) -> Option<Rectangle> { 
+        let (left_x, top_y) = (
+            self.top_left.0.max(other.top_left.0),
+            self.top_left.1.max(other.top_left.1),
+        );
+
+        let (right_x, bottom_y) = (
+            self.down_right.0.min(other.down_right.0),
+            self.down_right.1.min(other.down_right.1),
+        );
+
+        if left_x < right_x && top_y < bottom_y {
+            Some(Rectangle {
+                top_left: (left_x, top_y),
+                down_right: (right_x, bottom_y),
+            })
+        } else {
+            None
+        }
+    }
+}
+
 #[derive(Debug,Clone)]
 pub struct Area{
-    top: (Point,Point),
-    down: (Point,Point),
+    top: Rectangle,
+    down: Rectangle,
 }
 
 impl Area {
-    fn intersection(&self, _other: &Area) -> Option<Area> {
-        todo!()
+    fn intersection(&self, other: &Area) -> Option<Area> { //TODO: wrong
+        let top_intersection = self.top.intersection(&other.top);
+        let down_intersection = self.down.intersection(&other.down);
+
+        match (top_intersection, down_intersection) {
+            (Some(top), Some(down)) => Some(Area { top, down }),
+            (Some(top), None) => Some(Area {
+                top,
+                down: self.down.clone(), // Default to self.down if no intersection
+            }),
+            (None, Some(down)) => Some(Area {
+                top: self.top.clone(), // Default to self.top if no intersection
+                down,
+            }),
+            (None, None) => None, // No intersection at all
+        }
     }
 }
 
@@ -75,7 +125,7 @@ pub fn get_data_from_csv(
     return Ok(results);
 }
 
-pub fn clustering<'a>(identifier: &'a str, units: &'a[Unit], offset: &Range<usize>) -> (&'a str,Vec<Cluster>) {
+pub fn clustering_lazy<'a>(identifier: &'a str, units: &'a[Unit], offset: &Range<f32>) -> (&'a str,Vec<Cluster>) {
     let mut clusters: Vec<Cluster> = Vec::new();
 
     for current_unit in units {

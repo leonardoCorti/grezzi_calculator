@@ -33,11 +33,11 @@ struct Cli {
 
     /// Offset_max
     #[arg(long, default_value = "10")]
-    offset_min: usize,
+    offset_min: f32,
     
     /// Offset max
     #[arg(long, default_value = "25")]
-    offset_max: usize,
+    offset_max: f32,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -62,7 +62,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         Box::new(io::stdout())
     };
 
-    let clusters: Vec<_> = identifiers.par_iter().map(|(k,v)|clustering(k,v, &offsets)).collect();
+    let clusters: Vec<_> = identifiers.par_iter().map(|(k,v)|clustering_lazy(k,v, &offsets)).collect();
 
     clusters.into_iter().for_each(|(k,v)| {
         writeln!(writer, "{:?}{:?}", k, v).expect("Failed to write to output file");

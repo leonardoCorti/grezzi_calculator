@@ -1,10 +1,10 @@
 use clap::Parser;
-use csv::ReaderBuilder;
 use std::collections::HashMap;
 use std::error::Error;
-use std::fs::File;
 
 use rayon::prelude::*;
+
+use grezzi_calculator::*;
 
 /// program to read and calculate the grezzi dimensions
 #[derive(Parser, Debug)]
@@ -29,9 +29,13 @@ struct Cli {
     #[arg(short, long, default_value = "2")]
     length_column: usize,
 
-    /// Offset
+    /// Offset_max
     #[arg(long, default_value = "10")]
-    offset: usize,
+    offset_min: usize,
+    
+    /// Offset max
+    #[arg(long, default_value = "25")]
+    offset_max: usize,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -55,49 +59,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 fn do_stuff<'a>(k: &'a str, v: &'a[Unit]) -> (&'a str,Vec<Unit>) {
     let new_unit = Unit { height: v[0].width, width: v[0].height };
     return (k,vec![new_unit]);
-}
-
-
-fn get_data(
-    input_path: &str,
-    columns: &[usize],
-    width_column: usize,
-    height_column: usize
-) -> Result<HashMap<String,Vec<Unit>>, Box<dyn Error>> {
-    // Open input file
-    let input_file = File::open(input_path)?;
-    let mut rdr = ReaderBuilder::new().delimiter(b';').from_reader(input_file);
-    let mut results: HashMap<String,Vec<Unit>> = HashMap::new();
-    
-    // Process records
-    for result in rdr.records() {
-        let record = result?;
-        let selected_fields: Vec<&str> = columns
-            .iter()
-            .filter_map(|&col| record.get(col - 1)) // Convert 1-based to 0-based index
-            .collect();
-        let width: f32 = record.get(width_column -1).expect("cannot access width").replace(",", ".").parse()?;
-        let height: f32 = record.get(height_column -1).expect("cannot access height").replace(",", ".").parse()?;
-        let current_unit: Unit = Unit { height, width };
-        let identifier = selected_fields.join(",");
-        match results.get_mut(&identifier) {
-            Some(id_list) => {
-                id_list.push(current_unit);
-            }
-            None => {
-                    let mut id_list: Vec<Unit> = Vec::new();
-                    id_list.push(current_unit);
-                    results.insert(identifier, id_list);
-                }
-        }
-    }
-    return Ok(results);
-}
-
-#[derive(Debug)]
-struct Unit{
-    height: f32,
-    width: f32,
 }
 
 //styling for help flag

@@ -1,6 +1,8 @@
 use clap::Parser;
 use std::collections::HashMap;
 use std::error::Error;
+use std::fs::File;
+use std::io::{self, Write};
 
 use rayon::prelude::*;
 
@@ -48,17 +50,25 @@ fn main() -> Result<(), Box<dyn Error>> {
         .map(|s| s.trim().parse::<usize>().expect("Invalid column index"))
         .collect();
 
-    let identifiers: HashMap<String,Vec<Unit>> = get_data(&cli.input, &identifiers_columns, cli.width_column, cli.length_column)?;
+    let identifiers: HashMap<String,Vec<Unit>> = get_data_from_csv(&cli.input, &identifiers_columns, cli.width_column, cli.length_column)?;
 
-    identifiers.par_iter().map(|(k,v)|do_stuff(k,v))
-        .for_each(|(k,v)| println!("{:?}{:?}",k,v));
-    
+    let offsets = cli.offset_min..cli.offset_max;
+
+    let mut writer: Box<dyn Write> = if let Some(ref output) = &cli.output {
+        // If output is Some, write to the specified file
+        Box::new(File::create(output).expect("Failed to create output file"))
+    } else {
+        // If output is None, write to stdout
+        Box::new(io::stdout())
+    };
+
+    let clusters: Vec<_> = identifiers.par_iter().map(|(k,v)|clustering(k,v, &offsets)).collect();
+
+    clusters.into_iter().for_each(|(k,v)| {
+        writeln!(writer, "{:?}{:?}", k, v).expect("Failed to write to output file");
+    });
+
     Ok(())
-}
-
-fn do_stuff<'a>(k: &'a str, v: &'a[Unit]) -> (&'a str,Vec<Unit>) {
-    let new_unit = Unit { height: v[0].width, width: v[0].height };
-    return (k,vec![new_unit]);
 }
 
 //styling for help flag

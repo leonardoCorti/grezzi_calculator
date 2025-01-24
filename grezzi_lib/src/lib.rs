@@ -1,15 +1,45 @@
-use std::{collections::HashMap, error::Error, fs::File};
+#![allow(dead_code)]
+use std::{collections::HashMap, error::Error, fs::File, ops::Range};
 
 use csv::ReaderBuilder;
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct Unit{
     pub height: f32,
     pub width: f32,
 }
 
+impl Unit {
+    fn get_area(&self, _offset: &Range<usize>) -> Area {
+    todo!()
+    }
+}
 
-pub fn get_data(
+#[derive(Debug,Clone)]
+struct Point{
+    top_left: (f32,f32),
+    down_right: (f32,f32),
+}
+
+#[derive(Debug,Clone)]
+pub struct Area{
+    top: (Point,Point),
+    down: (Point,Point),
+}
+
+impl Area {
+    fn intersection(&self, _other: &Area) -> Option<Area> {
+        todo!()
+    }
+}
+
+#[derive(Debug,Clone)]
+pub struct Cluster {
+    pub area: Area,
+    pub units: Vec<Unit>,
+}
+
+pub fn get_data_from_csv(
     input_path: &str,
     columns: &[usize],
     width_column: usize,
@@ -45,3 +75,31 @@ pub fn get_data(
     return Ok(results);
 }
 
+pub fn clustering<'a>(identifier: &'a str, units: &'a[Unit], offset: &Range<usize>) -> (&'a str,Vec<Cluster>) {
+    let mut clusters: Vec<Cluster> = Vec::new();
+
+    for current_unit in units {
+        let current_area = current_unit.get_area(offset);
+
+        let matching_cluster = clusters.iter_mut()
+            .filter_map(|c| {
+                match c.area.intersection(&current_area) {
+                    Some(area_of_intersection) => Some((c,area_of_intersection)),
+                    None => None,
+                }
+            }).next();
+
+        match matching_cluster {
+            Some((the_cluster,area_of_intersection)) => { //update the matching cluster
+                the_cluster.units.push(current_unit.clone());
+                the_cluster.area = area_of_intersection;
+            },
+            None => { //create a new cluster
+                let new_cluster: Cluster = Cluster { area: current_area, units: vec![current_unit.clone()] };
+                clusters.push(new_cluster);
+            },
+        }
+    }
+
+    return (identifier,clusters);
+}

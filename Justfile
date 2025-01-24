@@ -1,5 +1,5 @@
-debug_bin := "target/debug/grezzi_calculator.exe"
-release_bin := "target/release/grezzi_calculator.exe"
+debug_bin := "target/debug/grezzi_cli.exe"
+release_bin := "target/release/grezzi_cli.exe"
 
 alias b := build
 alias re := release
@@ -17,7 +17,11 @@ release:
 
 #run
 run:
-	cargo r
+	cargo r 
+
+#run the gui
+gui:
+	cargo r --package grezzi_gui
 
 #build
 build:

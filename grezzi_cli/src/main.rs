@@ -4,7 +4,7 @@ use std::error::Error;
 
 use rayon::prelude::*;
 
-use grezzi_calculator::*;
+use grezzi_lib::*;
 
 /// program to read and calculate the grezzi dimensions
 #[derive(Parser, Debug)]

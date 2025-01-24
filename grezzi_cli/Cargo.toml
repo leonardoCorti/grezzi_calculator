@@ -1,0 +1,11 @@
+[package]
+name = "grezzi_cli"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+grezzi_lib = { path = "../grezzi_lib" }
+anstyle = "1.0.10"
+clap = { version = "4.5.27", features = ["derive"] }
+csv.workspace = true
+rayon.workspace = true

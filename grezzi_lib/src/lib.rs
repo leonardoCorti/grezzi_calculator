@@ -1,6 +1,8 @@
 use std::{collections::HashMap, error::Error, fs::File, ops::Range};
+use rand::Rng;
 
 use csv::ReaderBuilder;
+use image::{Rgb, RgbImage};
 
 #[derive(Debug,Clone)]
 pub struct Unit{
@@ -35,25 +37,8 @@ struct Rectangle{
 }
 
 impl Rectangle {
-    fn intersection(&self, other: &Rectangle) -> Option<Rectangle> { 
-        let (left_x, top_y) = (
-            self.top_left.0.max(other.top_left.0),
-            self.top_left.1.max(other.top_left.1),
-        );
-
-        let (right_x, bottom_y) = (
-            self.down_right.0.min(other.down_right.0),
-            self.down_right.1.min(other.down_right.1),
-        );
-
-        if left_x < right_x && top_y < bottom_y {
-            Some(Rectangle {
-                top_left: (left_x, top_y),
-                down_right: (right_x, bottom_y),
-            })
-        } else {
-            None
-        }
+    fn intersection(&self, other: &Rectangle) -> Option<Rectangle> {
+        None
     }
 }
 
@@ -152,4 +137,105 @@ pub fn clustering_lazy<'a>(identifier: &'a str, units: &'a[Unit], offset: &Range
     }
 
     return (identifier,clusters);
+}
+
+pub fn get_image(clusters: &Vec<(&str,Vec<Cluster>)>, offset: &Range<f32> ) -> RgbImage {
+    let img_width = 2000;
+    let img_height = 2000;
+    
+    // Determine scaling factors to fit all units within the image
+
+    let max_width = clusters
+        .iter()
+        .flat_map(|(_, cluster_list)| cluster_list.iter())
+        .flat_map(|cluster| cluster.units.iter())
+        .map(|u| u.width)
+        .fold(0.0 / 0.0, f32::max);
+
+    let max_height = clusters
+        .iter()
+        .flat_map(|(_, cluster_list)| cluster_list.iter())
+        .flat_map(|cluster| cluster.units.iter())
+        .map(|u| u.height)
+        .fold(0.0 / 0.0, f32::max);
+
+    let scale_x = img_width as f32 / (max_width + offset.end);
+    let scale_y = img_height as f32 / (max_height + offset.end);
+    let scale = 1;
+
+    let mut img = RgbImage::new(img_width, img_height);
+
+    let mut rng = rand::thread_rng();
+
+    for (_, clusters) in clusters {
+        for cluster in clusters {
+            for unit in &cluster.units {
+                let scaled_width = unit.width * scale;
+                let scaled_height = unit.height * scale;
+                let scaled_offset = Range {
+                    start: offset.start * scale,
+                    end: offset.end * scale,
+                };
+
+                let area = Unit {
+                    height: scaled_height,
+                    width: scaled_width,
+                }
+                .get_area(&scaled_offset);
+
+                let color = Rgb([
+                    rng.gen_range(0..255) as u8,
+                    rng.gen_range(0..255) as u8,
+                    rng.gen_range(0..255) as u8,
+                ]);
+
+                draw_rectangle(&mut img, &area.top, &color, 0.5);
+                draw_rectangle(&mut img, &area.down, &color, 0.5);
+
+                draw_circle(&mut img, unit.width as u32, unit.height as u32, 3, &color, 0.5);
+            }
+        }
+    }
+
+    return img;
+}
+
+fn blend_color(base: &Rgb<u8>, overlay: &Rgb<u8>, alpha: f32) -> Rgb<u8> {
+    Rgb([
+        ((1.0 - alpha) * base[0] as f32 + alpha * overlay[0] as f32) as u8,
+        ((1.0 - alpha) * base[1] as f32 + alpha * overlay[1] as f32) as u8,
+        ((1.0 - alpha) * base[2] as f32 + alpha * overlay[2] as f32) as u8,
+    ])
+}
+
+fn draw_rectangle(img: &mut RgbImage, rect: &Rectangle, color: &Rgb<u8>, alpha: f32) {
+    let (x1, y1) = rect.top_left;
+    let (x2, y2) = rect.down_right;
+
+    for x in x1 as u32..x2 as u32 {
+        for y in y2 as u32..y1 as u32 {
+            if x < img.width() && y < img.height() {
+                let base_color = img.get_pixel(x, img.height() - 1 - y);
+                let blended_color = blend_color(base_color, color, alpha);
+                img.put_pixel(x, img.height() - 1 - y, blended_color);
+            }
+        }
+    }
+}
+
+fn draw_circle(img: &mut RgbImage, center_x: u32, center_y: u32, radius: u32, color: &Rgb<u8>, alpha: f32) {
+    let img_height = img.height();
+    for x in (center_x as i32 - radius as i32)..=(center_x as i32 + radius as i32) {
+        for y in (center_y as i32 - radius as i32)..=(center_y as i32 + radius as i32) {
+            let dx = x - center_x as i32;
+            let dy = y - center_y as i32;
+            if dx * dx + dy * dy <= (radius as i32).pow(2) {
+                if x >= 0 && y >= 0 && (x as u32) < img.width() && (y as u32) < img.height() {
+                    let base_color = img.get_pixel(x as u32, img_height - 1 - y as u32);
+                    let blended_color = blend_color(base_color, color, alpha);
+                    img.put_pixel(x as u32, img_height - 1 - y as u32, blended_color);
+                }
+            }
+        }
+    }
 }

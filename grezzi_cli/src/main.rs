@@ -20,7 +20,7 @@ struct Cli {
     output: Option<String>,
 
     /// Comma-separated list of columns with important identifiers (1-based index)
-    #[arg(short, long, default_value = "1,5")]
+    #[arg(short, long, default_value = "5")]
     identifiers_columns: String,
     
     /// Column containing the width
@@ -38,6 +38,10 @@ struct Cli {
     /// Offset max
     #[arg(long, default_value = "25")]
     offset_max: f32,
+
+    /// create an image representing the distributions
+    #[arg(short,long, default_value="false")]
+    plot: bool,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -64,9 +68,14 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let clusters: Vec<_> = identifiers.par_iter().map(|(k,v)|clustering_lazy(k,v, &offsets)).collect();
 
-    clusters.into_iter().for_each(|(k,v)| {
-        writeln!(writer, "{:?}{:?}", k, v).expect("Failed to write to output file");
+    clusters.iter().for_each(|(k,v)| {
+        writeln!(writer, "{:?}{:#?}", k, v).expect("Failed to write to output file");
     });
+
+    if cli.plot {
+        let plot = get_image(&clusters, &offsets);
+        plot.save("plot.png")?;
+    }
 
     Ok(())
 }

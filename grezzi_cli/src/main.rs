@@ -45,6 +45,8 @@ struct Cli {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
+    tracing_subscriber::fmt::init();
+
     let cli = Cli::parse();
 
     // Parse column indices

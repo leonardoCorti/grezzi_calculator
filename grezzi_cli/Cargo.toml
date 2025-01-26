@@ -9,3 +9,5 @@ anstyle = "1.0.10"
 clap = { version = "4.5.27", features = ["derive"] }
 csv.workspace = true
 rayon.workspace = true
+tracing.workspace = true
+tracing-subscriber = "0.3.19"

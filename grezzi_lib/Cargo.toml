@@ -7,3 +7,4 @@ edition = "2021"
 csv.workspace = true
 image = "0.25.5"
 rand = "0.8.5"
+tracing.workspace = true

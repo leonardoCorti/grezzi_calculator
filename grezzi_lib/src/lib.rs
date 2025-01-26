@@ -1,5 +1,6 @@
 use std::{collections::HashMap, error::Error, fs::File, ops::Range};
 use rand::Rng;
+use tracing::info;
 
 use csv::ReaderBuilder;
 use image::{Rgb, RgbImage};
@@ -12,58 +13,48 @@ pub struct Unit{
 
 impl Unit {
     fn get_area(&self, offset: &Range<f32>) -> Area {
-        let o_min: f32 = offset.start;
-        let o_max: f32 = offset.end;
-        let x: f32 = self.width;
-        let y: f32 = self.height;
-        //top rectangle
-        let top = Rectangle{ 
-            top_left: (x,y+o_max),
-            down_right: (x+o_max,y+o_min),
+        return Area { 
+            top_left: Point { 
+                x: self.height + offset.start, 
+                y: self.width + offset.end, 
+            }, 
+            down_right: Point { 
+                x: self.height + offset.end, 
+                y: self.width + offset.start,
+            } 
         };
-        //bottom rectagngle
-        let down = Rectangle{
-            top_left: (x+o_min,y+o_max),
-            down_right: (x+o_max,y), 
-        };
-        return Area { top , down };
     }
 }
 
 #[derive(Debug,Clone)]
-struct Rectangle{
-    top_left: (f32,f32),
-    down_right: (f32,f32),
-}
-
-impl Rectangle {
-    fn intersection(&self, other: &Rectangle) -> Option<Rectangle> {
-        None
-    }
+struct Point{
+    x: f32,
+    y: f32,
 }
 
 #[derive(Debug,Clone)]
 pub struct Area{
-    top: Rectangle,
-    down: Rectangle,
+    top_left: Point,
+    down_right: Point,
 }
 
 impl Area {
-    fn intersection(&self, other: &Area) -> Option<Area> { //TODO: wrong
-        let top_intersection = self.top.intersection(&other.top);
-        let down_intersection = self.down.intersection(&other.down);
+    fn intersection(&self, other: &Area) -> Option<Area> {
+        // Compute the intersection points
+        let top_left = Point {
+            x: self.top_left.x.max(other.top_left.x),
+            y: self.top_left.y.min(other.top_left.y),
+        };
+        let down_right = Point {
+            x: self.down_right.x.min(other.down_right.x),
+            y: self.down_right.y.max(other.down_right.y),
+        };
 
-        match (top_intersection, down_intersection) {
-            (Some(top), Some(down)) => Some(Area { top, down }),
-            (Some(top), None) => Some(Area {
-                top,
-                down: self.down.clone(), // Default to self.down if no intersection
-            }),
-            (None, Some(down)) => Some(Area {
-                top: self.top.clone(), // Default to self.top if no intersection
-                down,
-            }),
-            (None, None) => None, // No intersection at all
+        // Check if the areas overlap
+        if top_left.x <= down_right.x && top_left.y <= down_right.y {
+            Some(Area { top_left, down_right })
+        } else {
+            None
         }
     }
 }
@@ -110,8 +101,14 @@ pub fn get_data_from_csv(
     return Ok(results);
 }
 
-pub fn clustering_lazy<'a>(identifier: &'a str, units: &'a[Unit], offset: &Range<f32>) -> (&'a str,Vec<Cluster>) {
+#[tracing::instrument]
+pub fn clustering_lazy<'a>(
+    identifier: &'a str,
+    units: &'a[Unit],
+    offset: &Range<f32>
+) -> (&'a str,Vec<Cluster>) {
     let mut clusters: Vec<Cluster> = Vec::new();
+    info!("lazy clustering init");
 
     for current_unit in units {
         let current_area = current_unit.get_area(offset);
@@ -161,7 +158,7 @@ pub fn get_image(clusters: &Vec<(&str,Vec<Cluster>)>, offset: &Range<f32> ) -> R
 
     let scale_x = img_width as f32 / (max_width + offset.end);
     let scale_y = img_height as f32 / (max_height + offset.end);
-    let scale = 1;
+    let scale = 1.0;
 
     let mut img = RgbImage::new(img_width, img_height);
 
@@ -170,18 +167,9 @@ pub fn get_image(clusters: &Vec<(&str,Vec<Cluster>)>, offset: &Range<f32> ) -> R
     for (_, clusters) in clusters {
         for cluster in clusters {
             for unit in &cluster.units {
-                let scaled_width = unit.width * scale;
-                let scaled_height = unit.height * scale;
-                let scaled_offset = Range {
-                    start: offset.start * scale,
-                    end: offset.end * scale,
-                };
-
-                let area = Unit {
-                    height: scaled_height,
-                    width: scaled_width,
-                }
-                .get_area(&scaled_offset);
+                let scaled_width = unit.width ;
+                let scaled_height = unit.height;
+                let area = cluster.area.clone();
 
                 let color = Rgb([
                     rng.gen_range(0..255) as u8,
@@ -189,8 +177,7 @@ pub fn get_image(clusters: &Vec<(&str,Vec<Cluster>)>, offset: &Range<f32> ) -> R
                     rng.gen_range(0..255) as u8,
                 ]);
 
-                draw_rectangle(&mut img, &area.top, &color, 0.5);
-                draw_rectangle(&mut img, &area.down, &color, 0.5);
+                draw_rectangle(&mut img, &area, &color, 0.5);
 
                 draw_circle(&mut img, unit.width as u32, unit.height as u32, 3, &color, 0.5);
             }
@@ -208,9 +195,11 @@ fn blend_color(base: &Rgb<u8>, overlay: &Rgb<u8>, alpha: f32) -> Rgb<u8> {
     ])
 }
 
-fn draw_rectangle(img: &mut RgbImage, rect: &Rectangle, color: &Rgb<u8>, alpha: f32) {
-    let (x1, y1) = rect.top_left;
-    let (x2, y2) = rect.down_right;
+fn draw_rectangle(img: &mut RgbImage, rect: &Area, color: &Rgb<u8>, alpha: f32) {
+    let x1 = rect.top_left.x;
+    let y1 = rect.top_left.y;
+    let x2 = rect.down_right.x;
+    let y2 = rect.down_right.y;
 
     for x in x1 as u32..x2 as u32 {
         for y in y2 as u32..y1 as u32 {

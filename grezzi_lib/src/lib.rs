@@ -5,6 +5,7 @@ use tracing::info;
 use csv::ReaderBuilder;
 use image::{Rgb, RgbImage};
 
+// height is X and width is Y
 #[derive(Debug,Clone)]
 pub struct Unit{
     pub height: f32,
@@ -12,6 +13,11 @@ pub struct Unit{
 }
 
 impl Unit {
+
+    fn new(x: f32, y: f32) -> Unit {
+        return Unit { height: x, width: y};
+    }
+
     fn get_area(&self, offset: &Range<f32>) -> Area {
         return Area { 
             top_left: Point { 
@@ -85,7 +91,7 @@ pub fn get_data_from_csv(
             .collect();
         let width: f32 = record.get(width_column -1).expect("cannot access width").replace(",", ".").parse()?;
         let height: f32 = record.get(height_column -1).expect("cannot access height").replace(",", ".").parse()?;
-        let current_unit: Unit = Unit { height, width };
+        let current_unit: Unit = Unit::new(width, height);
         let identifier = selected_fields.join(",");
         match results.get_mut(&identifier) {
             Some(id_list) => {

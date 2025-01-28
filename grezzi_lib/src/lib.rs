@@ -5,7 +5,7 @@ use tracing::info;
 use csv::ReaderBuilder;
 use image::{Rgb, RgbImage};
 
-// height is X and width is Y
+/// height is X and width is Y
 #[derive(Debug,Clone)]
 pub struct Unit{
     pub height: f32,
@@ -14,6 +14,7 @@ pub struct Unit{
 
 impl Unit {
 
+    /// put height in x and width in y
     fn new(x: f32, y: f32) -> Unit {
         return Unit { height: x, width: y};
     }

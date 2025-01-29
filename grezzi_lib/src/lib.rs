@@ -1,6 +1,6 @@
 use std::{collections::HashMap, error::Error, fs::File, ops::Range};
 use rand::Rng;
-use tracing::info;
+use tracing::{debug, info, trace};
 
 use csv::ReaderBuilder;
 use image::{Rgb, RgbImage};
@@ -46,6 +46,7 @@ pub struct Area{
 }
 
 impl Area {
+    #[tracing::instrument]
     fn intersection(&self, other: &Area) -> Option<Area> {
         // Compute the intersection points
         let top_left = Point {
@@ -56,11 +57,14 @@ impl Area {
             x: self.down_right.x.min(other.down_right.x),
             y: self.down_right.y.max(other.down_right.y),
         };
+        trace!("intersection points are {:?}, {:?}", top_left, down_right);
 
         // Check if the areas overlap
-        if top_left.x <= down_right.x && top_left.y <= down_right.y {
+        if top_left.x <= down_right.x && top_left.y >= down_right.y {
+            trace!("returned an area");
             Some(Area { top_left, down_right })
         } else {
+            trace!("returned None");
             None
         }
     }
@@ -108,7 +112,6 @@ pub fn get_data_from_csv(
     return Ok(results);
 }
 
-#[tracing::instrument]
 pub fn clustering_lazy<'a>(
     identifier: &'a str,
     units: &'a[Unit],
@@ -130,10 +133,12 @@ pub fn clustering_lazy<'a>(
 
         match matching_cluster {
             Some((the_cluster,area_of_intersection)) => { //update the matching cluster
+                debug!("updated the cluster {:?} with {:?}", the_cluster, current_unit);
                 the_cluster.units.push(current_unit.clone());
                 the_cluster.area = area_of_intersection;
             },
             None => { //create a new cluster
+                debug!("made a mew cluster with {:?}", current_unit);
                 let new_cluster: Cluster = Cluster { area: current_area, units: vec![current_unit.clone()] };
                 clusters.push(new_cluster);
             },
@@ -144,8 +149,8 @@ pub fn clustering_lazy<'a>(
 }
 
 pub fn get_image(clusters: &Vec<(&str,Vec<Cluster>)>, offset: &Range<f32> ) -> RgbImage {
-    let img_width = 2000;
-    let img_height = 2000;
+    let img_width = 1000;
+    let img_height = 1000;
     
     // Determine scaling factors to fit all units within the image
 

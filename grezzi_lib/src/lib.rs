@@ -33,13 +33,13 @@ impl Unit {
     }
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug,Clone,PartialEq)]
 struct Point{
     x: f32,
     y: f32,
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug,Clone,PartialEq)]
 pub struct Area{
     top_left: Point,
     down_right: Point,
@@ -59,8 +59,8 @@ impl Area {
         };
         trace!("intersection points are {:?}, {:?}", top_left, down_right);
 
-        // Check if the areas overlap
-        if top_left.x <= down_right.x && top_left.y >= down_right.y {
+        // check if it isn't inverted
+        if top_left.x < down_right.x && top_left.y > down_right.y {
             trace!("returned an area");
             Some(Area { top_left, down_right })
         } else {
@@ -238,5 +238,81 @@ fn draw_circle(img: &mut RgbImage, center_x: u32, center_y: u32, radius: u32, co
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn intersections_some() {
+        //first
+        let a: Area = Area {
+            top_left: Point { x: 2.0, y: 7.0 },
+            down_right: Point { x: 5.0, y: 4.0 }
+        };
+        let b: Area = Area {
+            top_left: Point { x: 3.0, y: 6.0 },
+            down_right: Point { x: 8.0, y: 3.0 }
+        };
+
+        let expected_intersection: Area = Area {
+            top_left: Point { x: 3.0, y: 6.0 },
+            down_right: Point { x: 5.0, y: 4.0 }
+        };
+        let actual_result = a.intersection(&b);
+
+        assert!(actual_result.is_some());
+        assert_eq!(expected_intersection, actual_result.unwrap() );
+        //second
+        let a: Area = Area {
+            top_left: Point { x: 2.0, y: 9.0 },
+            down_right: Point { x: 4.0, y: 5.0 }
+        };
+        let b: Area = Area {
+            top_left: Point { x: 1.0, y: 10.0 },
+            down_right: Point { x: 5.0, y: 4.0 }
+        };
+
+        let expected_intersection: Area = Area {
+            top_left: Point { x: 2.0, y: 9.0 },
+            down_right: Point { x: 4.0, y: 5.0 }
+        };
+        let actual_result = a.intersection(&b);
+
+        assert!(actual_result.is_some());
+        assert_eq!(expected_intersection, actual_result.unwrap() );
+    }
+
+    #[test]
+    fn intersections_none() {
+        //first
+        let a: Area = Area {
+            top_left: Point { x: 1.0, y: 9.0 },
+            down_right: Point { x: 3.0, y: 6.0 }
+        };
+        let b: Area = Area {
+            top_left: Point { x: 2.0, y: 4.0 },
+            down_right: Point { x: 3.0, y: 2.0 }
+        };
+
+        let actual_result = a.intersection(&b);
+
+        assert!(actual_result.is_none());
+        
+        //second
+        let a: Area = Area {
+            top_left: Point { x: 1.0, y: 9.0 },
+            down_right: Point { x: 3.0, y: 6.0 }
+        };
+        let b: Area = Area {
+            top_left: Point { x: 2.0, y: 6.0 },
+            down_right: Point { x: 3.0, y: 2.0 }
+        };
+
+        let actual_result = a.intersection(&b);
+
+        assert!(actual_result.is_none());
     }
 }
